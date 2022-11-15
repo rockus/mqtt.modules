@@ -1,0 +1,16 @@
+Makefile.in
+aclocal.m4
+autom4te.cache/
+compile
+config.log
+config.status
+configure
+depcomp
+install-sh
+missing
+Makefile
+
+.deps/
+*.o
+
+raspi_pulsecount_mqtt
