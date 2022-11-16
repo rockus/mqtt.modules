@@ -27,6 +27,8 @@ void printHelp(void);
 
 uint32_t counter;
 
+#define PIN 7
+
 // sig handler
 void sigHandler(int sig)
 {
@@ -128,8 +130,10 @@ int main(int argc, char **argv)
   }
 
   wiringPiSetup();
+  pinMode(PIN, INPUT);
+  pullUpDnControl(PIN, PUD_UP);
 
-  wiringPiISR(7, INT_EDGE_FALLING, &irqHandler);
+  wiringPiISR(PIN, INT_EDGE_FALLING, &irqHandler);
 
   for (;;)
     sleep (UINT_MAX);
