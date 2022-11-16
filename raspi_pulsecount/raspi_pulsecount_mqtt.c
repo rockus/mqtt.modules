@@ -22,12 +22,13 @@
 #include "raspi_pulsecount_mqtt.h"
 
 struct mosquitto *mosq;
-int publishToMqtt(void);
+int publishToMqtt(uint8_t);
 void printHelp(void);
 
-uint32_t counter;
+uint32_t counter[8];
 
-#define PIN 7
+#define PIN_BOILER 7
+#define PIN_SERVER 1
 
 // sig handler
 void sigHandler(int sig)
@@ -42,9 +43,13 @@ void sigHandler(int sig)
 }
 
 
-void irqHandler(void)
+void irqServerHandler(void)
 {
-  publishToMqtt();
+  publishToMqtt(PIN_SERVER);
+}
+void irqBoilerHandler(void)
+{
+  publishToMqtt(PIN_BOILER);
 }
 
 
@@ -130,19 +135,24 @@ int main(int argc, char **argv)
   }
 
   wiringPiSetup();
-  pinMode(PIN, INPUT);
-  pullUpDnControl(PIN, PUD_UP);
+  pinMode(PIN_BOILER, INPUT);
+  pullUpDnControl(PIN_BOILER, PUD_UP);
+  pinMode(PIN_SERVER, INPUT);
+  pullUpDnControl(PIN_SERVER, PUD_UP);
 
-  wiringPiISR(PIN, INT_EDGE_FALLING, &irqHandler);
+  wiringPiISR(PIN_BOILER, INT_EDGE_FALLING, &irqBoilerHandler);
+  wiringPiISR(PIN_SERVER, INT_EDGE_FALLING, &irqServerHandler);
 
   for (;;)
     sleep (UINT_MAX);
+
+  printf ("end\n");
 
   return 0 ;
 }
 
 
-int publishToMqtt(void)
+int publishToMqtt(uint8_t pin)
 {
   int rc;
   char payload[128];
@@ -154,10 +164,13 @@ int publishToMqtt(void)
   }
   else
   {
-    counter++;		// to make each msg different from the next, otherwise homeassistant doesn't accept them
+    counter[pin]++;		// to make each msg different from the next, otherwise homeassistant doesn't accept them
 			// in homeassistant: state_class: total_increasing
-    snprintf (payload, sizeof payload, "%d", counter);
-    rc = mosquitto_publish(mosq, NULL, "Energie/Boiler", strlen(payload), payload, 0, false);
+    snprintf (payload, sizeof payload, "%d", counter[pin]);
+    if (pin == PIN_BOILER)
+      rc = mosquitto_publish(mosq, NULL, "Energie/Boiler", strlen(payload), payload, 0, false);
+    if (pin == PIN_SERVER)
+      rc = mosquitto_publish(mosq, NULL, "Energie/Server", strlen(payload), payload, 0, false);
     if (rc)
     {
       printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
