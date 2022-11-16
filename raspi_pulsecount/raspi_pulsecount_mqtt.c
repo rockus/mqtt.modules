@@ -25,6 +25,8 @@ struct mosquitto *mosq;
 int publishToMqtt(void);
 void printHelp(void);
 
+uint32_t counter;
+
 // sig handler
 void sigHandler(int sig)
 {
@@ -148,7 +150,9 @@ int publishToMqtt(void)
   }
   else
   {
-    snprintf (payload, sizeof payload, "1");
+    counter++;		// to make each msg different from the next, otherwise homeassistant doesn't accept them
+			// in homeassistant: state_class: total_increasing
+    snprintf (payload, sizeof payload, "%d", counter);
     rc = mosquitto_publish(mosq, NULL, "Energie/Boiler", strlen(payload), payload, 0, false);
     if (rc)
     {
