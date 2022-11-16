@@ -14,3 +14,4 @@ Makefile
 *.o
 
 raspi_pulsecount_mqtt
+bme280_mqtt
