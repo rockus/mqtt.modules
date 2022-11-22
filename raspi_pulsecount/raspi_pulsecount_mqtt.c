@@ -158,11 +158,8 @@ int publishToMqtt(uint8_t pin)
   char payload[128];
 
   rc = mosquitto_reconnect(mosq);
-  if (rc)
-  {
-    printf ("Could not reconnect: error %d (%s)\n", rc, mosquitto_strerror(rc));
-  }
-  else
+  if (!rc)		// it does not matter if not all messages get transmitted, since the payload is a quasi-absolute counter
+			// as long as this tool does not restart, that quasi-absolute counter will increment
   {
     counter[pin]++;		// to make each msg different from the next, otherwise homeassistant doesn't accept them
 			// in homeassistant: state_class: total_increasing
