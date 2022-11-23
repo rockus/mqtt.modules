@@ -14,8 +14,9 @@
 #include "bme280.h"
 #include "bme280_mqtt.h"
 
-extern int initGatherData();
+extern int initGatherData(struct config *config);
 extern int gatherData (struct config *config, struct data *data);
+extern int deinitGatherData();
 
 int publishToMqtt (struct mosquitto *mosq, struct data *data);
 static void printHelp(void);
@@ -115,7 +116,7 @@ printf ("node: %s\n", config.pNodeName);
 printf ("broker: %s\n", config.pBrokerName);
 printf ("i2c bus: %s\n", config.pi2cBus);
 
-  initGatherData();
+  initGatherData(&config);
 
   mosquitto_lib_init();
   mosq = mosquitto_new(config.pNodeName, true, NULL);
@@ -139,16 +140,19 @@ printf ("i2c bus: %s\n", config.pi2cBus);
     {
       fprintf(stderr, "could not gather data. Sleeping...\n");
     }
-
-    if (publishToMqtt (mosq, &data))
+    else
     {
-      fprintf(stderr, "publishing failed. Sleeping...\n");
+      if (publishToMqtt (mosq, &data))
+      {
+        fprintf(stderr, "publishing failed. Sleeping...\n");
+      }
     }
 
     sleep(60);
   }
 
   printf ("Closing down.\n");
+  deinitGatherData();
   if (mosq) mosquitto_disconnect(mosq);
   if (mosq) mosquitto_destroy(mosq);
   mosquitto_lib_cleanup();

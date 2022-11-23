@@ -1,3 +1,4 @@
+	// this stops execution on error. BAD!
 #include "bme280.h"
 #include "../config.h"
 
@@ -14,29 +15,61 @@
 
 // https://github.com/nahidalam/raspberryPi/blob/master/i2ctest.c
 
-int initGatherData()
+int find_bme280(struct config *config, unsigned char addr);
+
+static volatile int fd;
+
+int initGatherData(struct config *config)
 {
-  return wiringPiSetup();
+  int rc;
+
+  wiringPiSetup();
+
+  // check for device present on both addresses (0x76 and 0x77),
+  // use first found
+  fd=0;
+
+  fd = wiringPiI2CSetupInterface (config->pi2cBus, 0x76);
+  rc = find_bme280(config, 0x76);
+  if (!rc)
+  {
+    close (fd);
+
+    fd = wiringPiI2CSetupInterface (config->pi2cBus, 0x77);
+    rc = find_bme280(config, 0x77);
+    if (!rc)
+    {
+      close (fd);
+      fd = 0;
+      return 0;
+    }
+  }
+
+  return fd;
+}
+
+int deinitGatherData()
+{
+  if (fd) close(fd);
+  return 0;
 }
 
 // return file descriptor if BME280 found at addr, else return 0
 int find_bme280(struct config *config, unsigned char addr)
 {
-    int fd, byte;
+    int byte;
 
-    fd = wiringPiI2CSetupInterface (config->pi2cBus, addr);
-                // this stops execution on error. BAD!
     byte = wiringPiI2CReadReg8(fd, 0xd0);
     if (byte == 0x60)
     {
         printf ("BME280 found at addr 0x%02x.\n", addr);
-        return fd;
+        return 1;
     }
     printf ("No BME280 found at addr 0x%02x.\n", addr);
     return 0;
 }
 
-void do_single_measurement(int fd)
+void do_single_measurement(void)
 {
   int address, byte;
   // configure bme280, execute single measurement and wait for completion
@@ -61,7 +94,7 @@ void do_single_measurement(int fd)
   } while (byte & 0b00001000);	// bit 3: measuring[0]
 }
 
-static int read_bme280_dat(int fd, struct data *data)
+static int read_bme280_dat(struct data *data)
 {
   int address, byte;
 
@@ -106,7 +139,7 @@ static int read_bme280_dat(int fd, struct data *data)
   return 1;
 }
 
-int compensate_data(int fd, struct data *data)
+int compensate_data(struct data *data)
 {
   int address, byte;
 
@@ -415,35 +448,20 @@ void calc_reduced_press(struct data *data)
 int gatherData(struct config *config, struct data *data)
 // return 0 on error
 {
-    int fd;
+  // config and execute one-shot measurement
+  do_single_measurement();
 
-    // check for device present on both addresses (0x76 and 0x77),
-    // use first found
-    fd = find_bme280(config, 0x76);
-    if (!(fd))
-        fd = find_bme280(config, 0x77);
-    if (fd)
-    {
-        // config and execute one-shot measurement
-        do_single_measurement(fd);
+  // read out raw data
+  read_bme280_dat(data);
 
-	// read out raw data
-	read_bme280_dat(fd, data);
+  // read calibration data and compensat
+  compensate_data(data);
 
-	// read calibration data and compensat
-        compensate_data(fd, data);
+  // calculate reduced barometric pressure
+  calc_reduced_press(data);
 
-	// calculate reduced barometric pressure
-	calc_reduced_press(data);
+  printf ("H: %5.2f%%\tT: %5.2f°C\tP: %5.2fPa\tPred: %5.2fPa\n", data->Humidity, data->Temperature, data->Pressure, data->PressureReduced);
+  syslog(LOG_INFO, "Humidity:%.2f%% Temperature:%.2f°C Pressure:%.2fhPa Pressure_reduced:%.2fhPa", data->Humidity, data->Temperature, data->Pressure / 100.0, data->PressureReduced / 100.0);
 
-	printf ("H: %5.2f%%\tT: %5.2f°C\tP: %5.2fPa\tPred: %5.2fPa\n", data->Humidity, data->Temperature, data->Pressure, data->PressureReduced);
-        syslog(LOG_INFO, "Humidity:%.2f%% Temperature:%.2f°C Pressure:%.2fhPa Pressure_reduced:%.2fhPa", data->Humidity, data->Temperature, data->Pressure / 100.0, data->PressureReduced / 100.0);
-
-	close (fd);
-	return 1;
-    }
-    else
-    {
-        return 0;
-    }
+  return 1;
 }
