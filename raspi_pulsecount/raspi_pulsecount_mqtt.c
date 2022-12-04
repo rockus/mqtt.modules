@@ -27,8 +27,14 @@ void printHelp(void);
 
 uint32_t counter[8];
 
+// wiringPi pin numbers
+//  function   wiringPi BCM Header
+//  Boiler S0     7      4    7
+//  Server S0     1     18   12
+//  Herd S0       4     23   16
 #define PIN_BOILER 7
 #define PIN_SERVER 1
+#define PIN_HERD   4
 
 // sig handler
 void sigHandler(int sig)
@@ -43,13 +49,17 @@ void sigHandler(int sig)
 }
 
 
+void irqBoilerHandler(void)
+{
+  publishToMqtt(PIN_BOILER);
+}
 void irqServerHandler(void)
 {
   publishToMqtt(PIN_SERVER);
 }
-void irqBoilerHandler(void)
+void irqHerdHandler(void)
 {
-  publishToMqtt(PIN_BOILER);
+  publishToMqtt(PIN_HERD);
 }
 
 
@@ -139,9 +149,12 @@ int main(int argc, char **argv)
   pullUpDnControl(PIN_BOILER, PUD_UP);
   pinMode(PIN_SERVER, INPUT);
   pullUpDnControl(PIN_SERVER, PUD_UP);
+  pinMode(PIN_HERD, INPUT);
+  pullUpDnControl(PIN_HERD, PUD_UP);
 
   wiringPiISR(PIN_BOILER, INT_EDGE_FALLING, &irqBoilerHandler);
   wiringPiISR(PIN_SERVER, INT_EDGE_FALLING, &irqServerHandler);
+  wiringPiISR(PIN_HERD, INT_EDGE_FALLING, &irqHerdHandler);
 
   for (;;)
     sleep (UINT_MAX);
@@ -168,6 +181,8 @@ int publishToMqtt(uint8_t pin)
       rc = mosquitto_publish(mosq, NULL, "Energie/Boiler", strlen(payload), payload, 0, false);
     if (pin == PIN_SERVER)
       rc = mosquitto_publish(mosq, NULL, "Energie/Server", strlen(payload), payload, 0, false);
+    if (pin == PIN_HERD)
+      rc = mosquitto_publish(mosq, NULL, "Energie/Herd", strlen(payload), payload, 0, false);
     if (rc)
     {
       printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
