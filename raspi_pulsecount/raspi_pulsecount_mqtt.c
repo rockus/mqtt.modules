@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <wiringPi.h>
 
@@ -26,15 +27,26 @@ int publishToMqtt(uint8_t);
 void printHelp(void);
 
 uint32_t counter[8];
+struct timeval tv[8];
+const char topictext[8][7] = {{""}, {"Server"}, {""}, {""}, {"Herd"}, {""}, {"Fridge"}, {"Boiler"}};
 
 // wiringPi pin numbers
 //  function   wiringPi BCM Header
 //  Boiler S0     7      4    7
 //  Server S0     1     18   12
 //  Herd S0       4     23   16
+//                5     24   18
+//  fridge S0     6     25   22
 #define PIN_BOILER 7
 #define PIN_SERVER 1
 #define PIN_HERD   4
+#define PIN_FRIDGE 6
+
+// max. power consumption (in Watts; to ignore spurious pulses)
+#define MAX_POWER_BOILER 3000
+#define MAX_POWER_SERVER  500
+#define MAX_POWER_HERD  12000
+#define MAX_POWER_FRIDGE 1000
 
 // sig handler
 void sigHandler(int sig)
@@ -60,6 +72,10 @@ void irqServerHandler(void)
 void irqHerdHandler(void)
 {
   publishToMqtt(PIN_HERD);
+}
+void irqFridgeHandler(void)
+{
+  publishToMqtt(PIN_FRIDGE);
 }
 
 
@@ -151,10 +167,13 @@ int main(int argc, char **argv)
   pullUpDnControl(PIN_SERVER, PUD_UP);
   pinMode(PIN_HERD, INPUT);
   pullUpDnControl(PIN_HERD, PUD_UP);
+  pinMode(PIN_FRIDGE, INPUT);
+  pullUpDnControl(PIN_FRIDGE, PUD_UP);
 
   wiringPiISR(PIN_BOILER, INT_EDGE_FALLING, &irqBoilerHandler);
   wiringPiISR(PIN_SERVER, INT_EDGE_FALLING, &irqServerHandler);
   wiringPiISR(PIN_HERD, INT_EDGE_FALLING, &irqHerdHandler);
+  wiringPiISR(PIN_FRIDGE, INT_EDGE_FALLING, &irqFridgeHandler);
 
   for (;;)
     sleep (UINT_MAX);
@@ -168,25 +187,129 @@ int main(int argc, char **argv)
 int publishToMqtt(uint8_t pin)
 {
   int rc;
-  char payload[128];
+  char payload[128], topic[32];
+  struct timeval tv_current;
+  uint64_t timediff, timediff_min;
 
-  rc = mosquitto_reconnect(mosq);
-  if (!rc)		// it does not matter if not all messages get transmitted, since the payload is a quasi-absolute counter
-			// as long as this tool does not restart, that quasi-absolute counter will increment
+  // it does not matter if not all messages get transmitted, since the payload is a quasi-absolute counter
+  // as long as this tool does not restart, that quasi-absolute counter will increment
+
+  gettimeofday(&tv_current, NULL);
+  timediff = (tv_current.tv_sec - tv[pin].tv_sec)*1e6 + tv_current.tv_usec - tv[pin].tv_usec;
+  tv[pin].tv_sec = tv_current.tv_sec;
+  tv[pin].tv_usec = tv_current.tv_usec;
+
+  snprintf (topic, (sizeof topic)-1, "Energie/%s", topictext[pin]);
+
+  printf ("pin %d timediff %7.3fs topic %s power %.3fW\n", pin, (float)timediff/1e6, topic, (float)3600*1e6/timediff);
+
+  if (pin == PIN_BOILER)
   {
-    counter[pin]++;		// to make each msg different from the next, otherwise homeassistant doesn't accept them
-			// in homeassistant: state_class: total_increasing
-    snprintf (payload, sizeof payload, "%d", counter[pin]);
-    if (pin == PIN_BOILER)
-      rc = mosquitto_publish(mosq, NULL, "Energie/Boiler", strlen(payload), payload, 0, false);
-    if (pin == PIN_SERVER)
-      rc = mosquitto_publish(mosq, NULL, "Energie/Server", strlen(payload), payload, 0, false);
-    if (pin == PIN_HERD)
-      rc = mosquitto_publish(mosq, NULL, "Energie/Herd", strlen(payload), payload, 0, false);
-    if (rc)
+    timediff_min = 3600*1e6 / MAX_POWER_BOILER;
+    if (timediff >= timediff_min)			// to avoid suprious pulses
     {
-      printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
+      counter[pin]++;
+      snprintf (payload, (sizeof payload)-1, "%d", counter[pin]);
+      rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+      if (rc==MOSQ_ERR_NO_CONN)
+      {
+        printf ("The client is currently not connected, trying to reconnect... ");
+        rc = mosquitto_reconnect(mosq);
+        if (rc==MOSQ_ERR_SUCCESS)
+        {
+          printf ("ok\n");
+          rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+        }
+        else
+        {
+          printf ("fail\n");
+        }
+      }
     }
+    else		// we had a spurious pulse, ignore it
+      rc=0;
+  }
+  if (pin == PIN_SERVER)
+  {
+    timediff_min = 3600*1e6 / MAX_POWER_SERVER;
+    if (timediff >= timediff_min)			// to avoid suprious pulses
+    {
+      counter[pin]++;
+      snprintf (payload, (sizeof payload)-1, "%d", counter[pin]);
+      rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+      if (rc==MOSQ_ERR_NO_CONN)
+      {
+        printf ("The client is currently not connected, trying to reconnect... ");
+        rc = mosquitto_reconnect(mosq);
+        if (rc==MOSQ_ERR_SUCCESS)
+        {
+          printf ("ok\n");
+          rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+        }
+        else
+        {
+          printf ("fail\n");
+        }
+      }
+    }
+    else		// we had a spurious pulse, ignore it
+      rc=0;
+  }
+  if (pin == PIN_HERD)
+  {
+    timediff_min = 3600*1e6 / MAX_POWER_HERD;
+    if (timediff >= timediff_min)			// to avoid suprious pulses
+    {
+      counter[pin]++;
+      snprintf (payload, (sizeof payload)-1, "%d", counter[pin]);
+      rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+      if (rc==MOSQ_ERR_NO_CONN)
+      {
+        printf ("The client is currently not connected, trying to reconnect... ");
+        rc = mosquitto_reconnect(mosq);
+        if (rc==MOSQ_ERR_SUCCESS)
+        {
+          printf ("ok\n");
+          rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+        }
+        else
+        {
+          printf ("fail\n");
+        }
+      }
+    }
+    else		// we had a spurious pulse, ignore it
+      rc=0;
+  }
+  if (pin == PIN_FRIDGE)
+  {
+    timediff_min = 3600*1e6 / MAX_POWER_FRIDGE;
+    if (timediff >= timediff_min)			// to avoid suprious pulses
+    {
+      counter[pin]++;
+      snprintf (payload, (sizeof payload)-1, "%d", counter[pin]);
+      rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+      if (rc==MOSQ_ERR_NO_CONN)
+      {
+        printf ("The client is currently not connected, trying to reconnect... ");
+        rc = mosquitto_reconnect(mosq);
+        if (rc==MOSQ_ERR_SUCCESS)
+        {
+          printf ("ok\n");
+          rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+        }
+        else
+        {
+          printf ("fail\n");
+        }
+      }
+    }
+    else		// we had a spurious pulse, ignore it
+      rc=0;
+  }
+  if (rc)
+  {
+    printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
   }
 
   return rc;
