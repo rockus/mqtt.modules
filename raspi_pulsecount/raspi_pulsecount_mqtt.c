@@ -164,22 +164,22 @@ int main(int argc, char **argv)
   char payload[512], topic[256];
   pin = PIN_BOILER;
   snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
-  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"kWh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
 //printf ("topic payload: %s %s\n", topic, payload);
   rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
   pin = PIN_SERVER;
   snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
-  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"kWh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
 //printf ("topic payload: %s %s\n", topic, payload);
   rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
   pin = PIN_HERD;
   snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
-  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"kWh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
 //printf ("topic payload: %s %s\n", topic, payload);
   rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
   pin = PIN_FRIDGE;
   snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
-  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"kWh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
 //printf ("topic payload: %s %s\n", topic, payload);
   rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
 
@@ -241,7 +241,7 @@ int publishToMqtt(uint8_t pin)
   if (rc == MOSQ_ERR_SUCCESS)
   {
     snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
-    snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+    snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"kWh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
 //printf ("topic payload: %s %s\n", topic, payload);
     rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
   }
@@ -249,7 +249,7 @@ int publishToMqtt(uint8_t pin)
   if (rc == MOSQ_ERR_SUCCESS)
   {
     snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s/state", config.pNodeName, topictext[pin]);
-    snprintf(payload, (sizeof payload)-1, "{\"energy\":%d}", counter[pin]);
+    snprintf(payload, (sizeof payload)-1, "{\"energy\":%.3f}", (float)counter[pin]/1000);	// convert from Wh to kWh
 //printf ("topic payload: %s %s\n", topic, payload);
     rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
   }

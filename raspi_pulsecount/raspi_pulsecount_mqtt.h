@@ -3,6 +3,6 @@
 
 #define COPYRIGHT "(c)2024 Oliver Gerler (oge@rockus.at)"
 #define TOOLNAME "pulsecountmqtt"
-#define PULSECOUNT_VERSION "v2.00"
+#define PULSECOUNT_VERSION "v2.01"
 
 #endif
