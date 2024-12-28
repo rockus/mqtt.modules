@@ -1,6 +1,6 @@
 /*
  * raspi_pulsecount_mqtt
- * author: Oliver Gerler 2022
+ * author: Oliver Gerler 2022,2024
  *
  * based on wiringpi example isr.c
  */
@@ -26,6 +26,8 @@ struct mosquitto *mosq;
 int publishToMqtt(uint8_t);
 void printHelp(void);
 
+struct config config;
+
 uint32_t counter[8];
 struct timeval tv[8];
 const char topictext[8][7] = {{""}, {"Server"}, {""}, {""}, {"Herd"}, {""}, {"Fridge"}, {"Boiler"}};
@@ -48,15 +50,14 @@ const char topictext[8][7] = {{""}, {"Server"}, {""}, {""}, {"Herd"}, {""}, {"Fr
 #define MAX_POWER_HERD  12000
 #define MAX_POWER_FRIDGE 1000
 
+uint8_t running=1;
+
 // sig handler
 void sigHandler(int sig)
 {
   if (sig==SIGINT)				// only quit on CTRL-C
   {
-    printf ("Closing down.\n");
-    if (mosq) mosquitto_disconnect(mosq);
-    if (mosq) mosquitto_destroy(mosq);
-    mosquitto_lib_cleanup();
+    running = 0;
   }
 }
 
@@ -87,7 +88,6 @@ int main(int argc, char **argv)
   // config file handling
   char configFilePath[MAXPATHLEN];
   config_t cfg;
-  struct config config;
   int c;						// for getopt
 
   int rc;
@@ -160,6 +160,29 @@ int main(int argc, char **argv)
     }
   }
 
+  uint8_t pin;
+  char payload[512], topic[256];
+  pin = PIN_BOILER;
+  snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+//printf ("topic payload: %s %s\n", topic, payload);
+  rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
+  pin = PIN_SERVER;
+  snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+//printf ("topic payload: %s %s\n", topic, payload);
+  rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
+  pin = PIN_HERD;
+  snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+//printf ("topic payload: %s %s\n", topic, payload);
+  rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
+  pin = PIN_FRIDGE;
+  snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
+  snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+//printf ("topic payload: %s %s\n", topic, payload);
+  rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
+
   wiringPiSetup();
   pinMode(PIN_BOILER, INPUT);
   pullUpDnControl(PIN_BOILER, PUD_UP);
@@ -175,10 +198,14 @@ int main(int argc, char **argv)
   wiringPiISR(PIN_HERD, INT_EDGE_FALLING, &irqHerdHandler);
   wiringPiISR(PIN_FRIDGE, INT_EDGE_FALLING, &irqFridgeHandler);
 
-  for (;;)
-    sleep (UINT_MAX);
+  while (running)
+    sleep (1);
 
-  printf ("end\n");
+  printf ("Closing down mqtt...");
+  if (mosq) mosquitto_disconnect(mosq);
+  if (mosq) mosquitto_destroy(mosq);
+  mosquitto_lib_cleanup();
+  printf ("done\n");
 
   return 0 ;
 }
@@ -187,7 +214,7 @@ int main(int argc, char **argv)
 int publishToMqtt(uint8_t pin)
 {
   int rc;
-  char payload[128], topic[32];
+  char payload[512], topic[256];
   struct timeval tv_current;
   uint64_t timediff, timediff_min;
 
@@ -199,6 +226,40 @@ int publishToMqtt(uint8_t pin)
   tv[pin].tv_sec = tv_current.tv_sec;
   tv[pin].tv_usec = tv_current.tv_usec;
 
+  if ( ((pin == PIN_BOILER) && ((3600*1e6 / MAX_POWER_BOILER) >= timediff_min)) ||	// to avoid spurious pulses
+       ((pin == PIN_SERVER) && ((3600*1e6 / MAX_POWER_SERVER) >= timediff_min)) ||
+       ((pin == PIN_HERD)   && ((3600*1e6 / MAX_POWER_HERD  ) >= timediff_min)) ||
+       ((pin == PIN_FRIDGE) && ((3600*1e6 / MAX_POWER_FRIDGE) >= timediff_min)) )
+  {
+    counter[pin]++;
+  }
+
+  rc = mosquitto_reconnect(mosq);
+  // rc==MOSQ_ERR_NO_CONN - client not currently connected
+  // rc==MOSQ_ERR_SUCCESS - success
+
+  if (rc == MOSQ_ERR_SUCCESS)
+  {
+    snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s_energy/config", config.pNodeName, topictext[pin]);
+    snprintf(payload, (sizeof payload)-1, "{\"name\":\"%s\", \"object_id\":\"%s_%s_energy\", \"device_class\":\"energy\", \"state_class\":\"total_increasing\", \"unit_of_measurement\":\"Wh\", \"state_topic\":\"homeassistant/sensor/%s/%s/state\", \"value_template\":\"{{value_json.energy}}\"}", topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin], config.pNodeName, topictext[pin]);	// 1000imp/kWh
+//printf ("topic payload: %s %s\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, TRUE);
+  }
+
+  if (rc == MOSQ_ERR_SUCCESS)
+  {
+    snprintf(topic, (sizeof topic)-1, "homeassistant/sensor/%s/%s/state", config.pNodeName, topictext[pin]);
+    snprintf(payload, (sizeof payload)-1, "{\"energy\":%d}", counter[pin]);
+//printf ("topic payload: %s %s\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+  }
+
+  if (rc)
+  {
+    printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
+  }
+
+/*
   snprintf (topic, (sizeof topic)-1, "Energie/%s", topictext[pin]);
 
   printf ("pin %d timediff %7.3fs topic %s power %.3fW\n", pin, (float)timediff/1e6, topic, (float)3600*1e6/timediff);
@@ -307,11 +368,7 @@ int publishToMqtt(uint8_t pin)
     else		// we had a spurious pulse, ignore it
       rc=0;
   }
-  if (rc)
-  {
-    printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
-  }
-
+*/
   return rc;
 }
 
