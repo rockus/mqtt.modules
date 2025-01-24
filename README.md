@@ -1,6 +1,6 @@
 initial creation
 ----------------
-`apt install automake libconfig-dev`
+`apt install automake libconfig-dev libmosquitto-dev git make gcc`
 
 `aclocal && automake --add-missing && autoconf && ./configure && make`
 
