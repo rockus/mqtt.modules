@@ -1,7 +1,14 @@
 initial creation
 ----------------
-`apt install automake libconfig-dev libmosquitto-dev git make gcc`
+`apt install libconfig-dev libmosquitto-dev git automake make gcc`
 
+`git clone https://github.com/WiringPi/WiringPi`
+`cd WiringPi`
+`./build`
+`cd ../`
+
+`git clone https://github.com/rockus/mqtt.modul`
+`cd mqtt.modules`
 `aclocal && automake --add-missing && autoconf && ./configure && make`
 
 raspi_pulsecount_mqtt
@@ -23,12 +30,9 @@ It should be run from `/etc/rc.local` (as it needs to monitor the GPIO pin activ
 
 bme280_mqtt
 ========
-This tool interfaces to a BME280 temperature/humidity/pressure sensor connected to I2C bus 2. The sensor module from Watterot also needs a 
-3.3V supply from the GPIO header.
+This tool interfaces to a BME280 temperature/humidity/pressure sensor connected to I2C bus 2.
 This is a command line tool.
 It should be run as a cronjob from `/etc/crontab` or `/etc/cron.hourly/`.
 
 * **BananaPi**: works
-* **Raspi**: not yet tried
-
-* Prerequisites: libconfig9, libconfig-dev, [wiringPi] (http://wiringpi.com/)
+* **Raspi**: if `make` fails at the end of the steps above with something like `undefined reference to symbol 'pow@@GLIBC_2.29'`, then `cd bme280` and manually compile with `gcc -o bme280_mqtt bme280_mqtt.c gatherData.c -lconfig -lmosquitto -lwiringPi -lm`
