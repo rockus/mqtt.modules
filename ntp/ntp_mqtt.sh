@@ -10,7 +10,7 @@ declare -i M8N_nSATS M8N_uSATS M8N_MODE
 
 while true; do
   NTP_DRIFT=`cat /var/lib/ntpsec/ntp.drift`
-  mosquitto_pub -h $HOST -u $USER -P $PWD -r -t "homeassistant/sensor/timeserver/ntp_drift/config" -m '{"name": "timeserver_ntp_drift", "device_class": "frequency", "unit_of_measurement": "ppm", "state_topic": "homeassistant/sensor/timeserver/ntp_drift/state"}'
+  mosquitto_pub -h $HOST -u $USER -P $PWD -r -t "homeassistant/sensor/timeserver/ntp_drift/config" -m '{"name": "timeserver_ntp_drift", "unit_of_measurement": "ppm", "state_topic": "homeassistant/sensor/timeserver/ntp_drift/state"}'
   mosquitto_pub -h $HOST -u $USER -P $PWD -t "homeassistant/sensor/timeserver/ntp_drift/state" -m $NTP_DRIFT
 
 #  PPS="$(ntpq -p | grep PPS | awk '{print $9, $10}')"
@@ -18,8 +18,8 @@ while true; do
   IFS=' ' read -r -d '' -a PPS < <( ntpq -p | grep PPS | awk '{print $9, $10}' | tr -d '\n' )
   PPS_OFFSET=${PPS[0]}
   PPS_JITTER=${PPS[1]}
-  mosquitto_pub -h $HOST -u $USER -P $PWD -r -t "homeassistant/sensor/timeserver/M8N_pps_jitter/config" -m '{"name": "timeserver_m8n_pps_jitter", "device_class": "frequency", "unit_of_measurement": "ms", "state_topic": "homeassistant/sensor/timeserver/M8N_pps/state", "value_template": "{{value_json.jitter}}"}'
-  mosquitto_pub -h $HOST -u $USER -P $PWD -r -t "homeassistant/sensor/timeserver/M8N_pps_offset/config" -m '{"name": "timeserver_m8n_pps_offset", "device_class": "frequency", "unit_of_measurement": "ms", "state_topic": "homeassistant/sensor/timeserver/M8N_pps/state", "value_template": "{{value_json.offset}}"}'
+  mosquitto_pub -h $HOST -u $USER -P $PWD -r -t "homeassistant/sensor/timeserver/M8N_pps_jitter/config" -m '{"name": "timeserver_m8n_pps_jitter", "unit_of_measurement": "ms", "state_topic": "homeassistant/sensor/timeserver/M8N_pps/state", "value_template": "{{value_json.jitter}}"}'
+  mosquitto_pub -h $HOST -u $USER -P $PWD -r -t "homeassistant/sensor/timeserver/M8N_pps_offset/config" -m '{"name": "timeserver_m8n_pps_offset", "unit_of_measurement": "ms", "state_topic": "homeassistant/sensor/timeserver/M8N_pps/state", "value_template": "{{value_json.offset}}"}'
   mosquitto_pub -h $HOST -u $USER -P $PWD -t "homeassistant/sensor/timeserver/M8N_pps/state" -m "{\"jitter\":$PPS_JITTER,\"offset\":$PPS_OFFSET}"
 
 #  head -20 /dev/serial0 >/tmp/serial0.msg
