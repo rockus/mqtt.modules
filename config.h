@@ -12,6 +12,9 @@ struct config
 
   // config for mqtt
   const char *pBrokerName;
+  const char *pUserName;
+  const char *pPassword;
+  const char *pTopic;
 
   // config options particular to single modules
   const char *pModemIP;

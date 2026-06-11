@@ -18,7 +18,7 @@ extern int initGatherData(struct config *config);
 extern int gatherData (struct config *config, struct data *data);
 extern int deinitGatherData();
 
-int publishToMqtt (struct mosquitto *mosq, struct data *data);
+int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic);
 static void printHelp(void);
 
 volatile int keepRunning=1;
@@ -104,6 +104,24 @@ int main(int argc, char **argv)
     config_destroy(&cfg);
     return EXIT_FAILURE;
   }
+  if (!(config_lookup_string(&cfg, "username", &(config.pUserName))))
+  {
+    fprintf(stderr, "No 'username' setting in configuration file.\n");
+    config_destroy(&cfg);
+    return EXIT_FAILURE;
+  }
+  if (!(config_lookup_string(&cfg, "password", &(config.pPassword))))
+  {
+    fprintf(stderr, "No 'password' setting in configuration file.\n");
+    config_destroy(&cfg);
+    return EXIT_FAILURE;
+  }
+  if (!(config_lookup_string(&cfg, "topic", &(config.pTopic))))
+  {
+    fprintf(stderr, "No 'topic' setting in configuration file.\n");
+    config_destroy(&cfg);
+    return EXIT_FAILURE;
+  }
   if (!(config_lookup_string(&cfg, "i2cbus", &(config.pi2cBus))))
   {
     fprintf(stderr, "No 'i2cbus' setting in configuration file.\n");
@@ -114,23 +132,38 @@ int main(int argc, char **argv)
 printf ("conf file: %s\n", configFilePath);
 printf ("node: %s\n", config.pNodeName);
 printf ("broker: %s\n", config.pBrokerName);
+printf ("username: %s\n", config.pUserName);
+printf ("password: [hidden]\n");
+printf ("topic: %s\n", config.pTopic);
 printf ("i2c bus: %s\n", config.pi2cBus);
 
   initGatherData(&config);
 
   mosquitto_lib_init();
+
+  rc = 0;
   mosq = mosquitto_new(config.pNodeName, true, NULL);
   if (!mosq)
   {
-    printf("mosquitto handler could not be allocated! error %d (%s)\n", errno, strerror(errno));
+    printf("mosquitto handler could not be allocated, error %d (%s)\n", errno, strerror(errno));
     rc = errno;
   }
-  else
+
+  if (!rc)
+  {
+    rc = mosquitto_username_pw_set(mosq, config.pUserName, config.pPassword);
+    if (rc)
+    {
+      printf("Could not set authentication info, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+  }
+
+  if (!rc)
   {
     rc = mosquitto_connect(mosq, config.pBrokerName, 1883, 60);
     if (rc)
     {
-      printf("Client could not connect to broker '%s'! Error Code: %d (%s)\n", config.pBrokerName, rc, mosquitto_strerror(rc));
+      printf("Client could not connect to broker '%s', error %d (%s)\n", config.pBrokerName, rc, mosquitto_strerror(rc));
     }
   }
 
@@ -142,13 +175,13 @@ printf ("i2c bus: %s\n", config.pi2cBus);
     }
     else
     {
-      if (publishToMqtt (mosq, &data))
+      if (publishToMqtt (mosq, &data, config.pTopic))
       {
         fprintf(stderr, "publishing failed. Sleeping...\n");
       }
     }
 
-    sleep(60);
+    sleep(10);
   }
 
   printf ("Closing down.\n");
@@ -163,10 +196,10 @@ printf ("i2c bus: %s\n", config.pi2cBus);
     return EXIT_FAILURE;
 }
 
-//int publishToMqtt (struct config *config, struct data *data)
-int publishToMqtt (struct mosquitto *mosq, struct data *data)
+int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic)
 {
   int rc;
+  char topic[128];
   char payload[128];
 
   rc = mosquitto_reconnect(mosq);
@@ -176,12 +209,13 @@ int publishToMqtt (struct mosquitto *mosq, struct data *data)
   }
   else
   {
+    snprintf (topic, sizeof topic, "%s/environment", pTopic);
     snprintf (payload, sizeof payload, "{\"temperature\": %0.2f, \"humidity\": %0.2f, \"pressure\": %0.2f, \"pressure_reduced\": %0.2f}", data->Temperature, data->Humidity, data->Pressure/100.0, data->PressureReduced/100.0);
-    printf ("topic '%s' payload '%s'\n", "Werkstatt/environment", payload);
-    rc = mosquitto_publish(mosq, NULL, "Werkstatt/environment", strlen(payload), payload, 0, false);
+    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
     if (rc)
     {
-      printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
+      printf ("Could not publish msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
     }
   }
 
