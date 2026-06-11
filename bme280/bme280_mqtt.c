@@ -18,7 +18,7 @@ extern int initGatherData(struct config *config);
 extern int gatherData (struct config *config, struct data *data);
 extern int deinitGatherData();
 
-int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic);
+int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic, const char *pNode);
 static void printHelp(void);
 
 volatile int keepRunning=1;
@@ -175,13 +175,13 @@ printf ("i2c bus: %s\n", config.pi2cBus);
     }
     else
     {
-      if (publishToMqtt (mosq, &data, config.pTopic))
+      if (publishToMqtt (mosq, &data, config.pTopic, config.pNodeName))
       {
         fprintf(stderr, "publishing failed. Sleeping...\n");
       }
     }
 
-    sleep(10);
+    sleep(60);
   }
 
   printf ("Closing down.\n");
@@ -196,11 +196,11 @@ printf ("i2c bus: %s\n", config.pi2cBus);
     return EXIT_FAILURE;
 }
 
-int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic)
+int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic, const char *pNode)
 {
   int rc;
   char topic[128];
-  char payload[128];
+  char payload[256];
 
   rc = mosquitto_reconnect(mosq);
   if (rc)
@@ -209,13 +209,45 @@ int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic
   }
   else
   {
-    snprintf (topic, sizeof topic, "%s/environment", pTopic);
+    snprintf (topic, sizeof topic, "%s/%s/environment_temperature/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_temperature\", \"device_class\": \"temperature\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.temperature}}\"}", pNode, pTopic, pNode);
+    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc)
+    {
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment_humidity/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_humidity\", \"unit_of_measurement\": \"%\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.humidity}}\"}", pNode, pTopic, pNode);
+    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc)
+    {
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment_pressure/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_pressure\", \"unit_of_measurement\": \"mbar\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.pressure}}\"}", pNode, pTopic, pNode);
+    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc)
+    {
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment_pressure_reduced/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_pressure_reduced\", \"unit_of_measurement\": \"mbar\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.pressure_reduced}}\"}", pNode, pTopic, pNode);
+    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc)
+    {
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment/state", pTopic, pNode);
     snprintf (payload, sizeof payload, "{\"temperature\": %0.2f, \"humidity\": %0.2f, \"pressure\": %0.2f, \"pressure_reduced\": %0.2f}", data->Temperature, data->Humidity, data->Pressure/100.0, data->PressureReduced/100.0);
     printf ("topic '%s' payload '%s'\n", topic, payload);
     rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
     if (rc)
     {
-      printf ("Could not publish msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+      printf ("Could not publish state msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
     }
   }
 
