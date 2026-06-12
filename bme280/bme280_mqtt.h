@@ -3,6 +3,6 @@
 
 #define COPYRIGHT "(c)2022-2026 Oliver Gerler (rockus@rockus.at)"
 #define TOOLNAME "BME280mqtt"
-#define BME280_VERSION "v2.01"
+#define BME280_VERSION "v2.02"
 
 #endif
