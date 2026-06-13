@@ -1,0 +1,14 @@
+[Unit]
+Description=ntp stats via mqtt
+After=network.target auditd.service
+
+[Service]
+ExecStart=/usr/local/bin/ntp_mqtt.sh
+KillMode=process
+Restart=on-failure
+RestartPreventExitStatus=255
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+

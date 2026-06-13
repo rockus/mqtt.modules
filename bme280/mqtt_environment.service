@@ -1,0 +1,13 @@
+[Unit]
+Description=MQTT client for environment meausurements
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/bme280_mqtt -c /etc/mqtt.config
+KillMode=process
+Restart=on-failure
+RestartPreventExitStatus=255
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

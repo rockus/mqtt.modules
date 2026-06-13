@@ -1,0 +1,13 @@
+[Unit]
+Description=cpu temperature via mqtt
+After=network.target auditd.service
+
+[Service]
+ExecStart=/usr/local/bin/cputemp_mqtt.sh
+KillMode=process
+Restart=on-failure
+RestartPreventExitStatus=255
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
