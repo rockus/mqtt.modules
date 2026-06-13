@@ -36,3 +36,5 @@ It should be run as a cronjob from `/etc/crontab` or `/etc/cron.hourly/`.
 
 * **BananaPi**: works
 * **Raspi**: if `make` fails at the end of the steps above with something like `undefined reference to symbol 'pow@@GLIBC_2.29'`, then `cd bme280` and manually compile with `gcc -o bme280_mqtt bme280_mqtt.c gatherData.c -lconfig -lmosquitto -lwiringPi -lm`
+
+If you use 'homeassistant/sensor' as topic, auto detection of the mqtt message is possible with the MQTT plugin in HomeAssistant.
