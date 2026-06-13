@@ -18,7 +18,7 @@ extern int initGatherData(struct config *config);
 extern int gatherData (struct config *config, struct data *data);
 extern int deinitGatherData();
 
-int publishToMqtt (struct mosquitto *mosq, struct data *data);
+int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic, const char *pNode);
 static void printHelp(void);
 
 volatile int keepRunning=1;
@@ -104,6 +104,24 @@ int main(int argc, char **argv)
     config_destroy(&cfg);
     return EXIT_FAILURE;
   }
+  if (!(config_lookup_string(&cfg, "username", &(config.pUserName))))
+  {
+    fprintf(stderr, "No 'username' setting in configuration file.\n");
+    config_destroy(&cfg);
+    return EXIT_FAILURE;
+  }
+  if (!(config_lookup_string(&cfg, "password", &(config.pPassword))))
+  {
+    fprintf(stderr, "No 'password' setting in configuration file.\n");
+    config_destroy(&cfg);
+    return EXIT_FAILURE;
+  }
+  if (!(config_lookup_string(&cfg, "topic", &(config.pTopic))))
+  {
+    fprintf(stderr, "No 'topic' setting in configuration file.\n");
+    config_destroy(&cfg);
+    return EXIT_FAILURE;
+  }
   if (!(config_lookup_string(&cfg, "i2cbus", &(config.pi2cBus))))
   {
     fprintf(stderr, "No 'i2cbus' setting in configuration file.\n");
@@ -114,27 +132,44 @@ int main(int argc, char **argv)
 printf ("conf file: %s\n", configFilePath);
 printf ("node: %s\n", config.pNodeName);
 printf ("broker: %s\n", config.pBrokerName);
+printf ("username: %s\n", config.pUserName);
+printf ("password: [hidden]\n");
+printf ("topic: %s\n", config.pTopic);
 printf ("i2c bus: %s\n", config.pi2cBus);
 
   initGatherData(&config);
 
   mosquitto_lib_init();
+
+  rc = MOSQ_ERR_SUCCESS;
   mosq = mosquitto_new(config.pNodeName, true, NULL);
   if (!mosq)
   {
-    printf("mosquitto handler could not be allocated! error %d (%s)\n", errno, strerror(errno));
+    printf("mosquitto handler could not be allocated, error %d (%s)\n", errno, strerror(errno));
     rc = errno;
   }
-  else
+
+  if (rc == MOSQ_ERR_SUCCESS)
   {
-    rc = mosquitto_connect(mosq, config.pBrokerName, 1883, 60);
-    if (rc)
+    rc = mosquitto_username_pw_set(mosq, config.pUserName, config.pPassword);
+    if (rc != MOSQ_ERR_SUCCESS)
     {
-      printf("Client could not connect to broker '%s'! Error Code: %d (%s)\n", config.pBrokerName, rc, mosquitto_strerror(rc));
+      printf("Could not set authentication info, error %d (%s)\n", rc, mosquitto_strerror(rc));
     }
   }
 
-  while (keepRunning && !rc)
+  rc = MOSQ_ERR_LOOKUP;
+  while (rc != MOSQ_ERR_SUCCESS)
+  {
+    rc = mosquitto_connect(mosq, config.pBrokerName, 1883, 60);
+    if (rc != MOSQ_ERR_SUCCESS)
+    {
+      printf("Client could not connect to broker '%s', error %d (%s). Sleeping...\n", config.pBrokerName, rc, mosquitto_strerror(rc));
+    }
+    sleep (2);
+  }
+
+  while (keepRunning && rc == MOSQ_ERR_SUCCESS)
   {
     if (!(gatherData(&config, &data)))
     {
@@ -142,7 +177,7 @@ printf ("i2c bus: %s\n", config.pi2cBus);
     }
     else
     {
-      if (publishToMqtt (mosq, &data))
+      if (publishToMqtt (mosq, &data, config.pTopic, config.pNodeName))
       {
         fprintf(stderr, "publishing failed. Sleeping...\n");
       }
@@ -163,25 +198,58 @@ printf ("i2c bus: %s\n", config.pi2cBus);
     return EXIT_FAILURE;
 }
 
-//int publishToMqtt (struct config *config, struct data *data)
-int publishToMqtt (struct mosquitto *mosq, struct data *data)
+int publishToMqtt (struct mosquitto *mosq, struct data *data, const char *pTopic, const char *pNode)
 {
   int rc;
-  char payload[128];
+  char topic[128];
+  char payload[256];
 
   rc = mosquitto_reconnect(mosq);
-  if (rc)
+  if (rc != MOSQ_ERR_SUCCESS)
   {
     printf ("Could not reconnect: error %d (%s)\n", rc, mosquitto_strerror(rc));
   }
   else
   {
-    snprintf (payload, sizeof payload, "{\"temperature\": %0.2f, \"humidity\": %0.2f, \"pressure\": %0.2f, \"pressure_reduced\": %0.2f}", data->Temperature, data->Humidity, data->Pressure/100.0, data->PressureReduced/100.0);
-    printf ("topic '%s' payload '%s'\n", "Werkstatt/environment", payload);
-    rc = mosquitto_publish(mosq, NULL, "Werkstatt/environment", strlen(payload), payload, 0, false);
-    if (rc)
+    snprintf (topic, sizeof topic, "%s/%s/environment_temperature/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_temperature\", \"device_class\": \"temperature\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.temperature}}\"}", pNode, pTopic, pNode);
+//    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc != MOSQ_ERR_SUCCESS)
     {
-      printf ("Could not publish: error %d (%s)\n", rc, mosquitto_strerror(rc));
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment_humidity/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_humidity\", \"unit_of_measurement\": \"%\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.humidity}}\"}", pNode, pTopic, pNode);
+//    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc != MOSQ_ERR_SUCCESS)
+    {
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment_pressure/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_pressure\", \"unit_of_measurement\": \"mbar\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.pressure}}\"}", pNode, pTopic, pNode);
+//    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc != MOSQ_ERR_SUCCESS)
+    {
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment_pressure_reduced/config", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"name\": \"%s_environment_pressure_reduced\", \"unit_of_measurement\": \"mbar\", \"state_topic\": \"%s/%s/environment/state\", \"value_template\": \"{{value_json.pressure_reduced}}\"}", pNode, pTopic, pNode);
+//    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc != MOSQ_ERR_SUCCESS)
+    {
+      printf ("Could not publish config msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
+    }
+    snprintf (topic, sizeof topic, "%s/%s/environment/state", pTopic, pNode);
+    snprintf (payload, sizeof payload, "{\"temperature\": %0.2f, \"humidity\": %0.2f, \"pressure\": %0.2f, \"pressure_reduced\": %0.2f}", data->Temperature, data->Humidity, data->Pressure/100.0, data->PressureReduced/100.0);
+//    printf ("topic '%s' payload '%s'\n", topic, payload);
+    rc = mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, false);
+    if (rc != MOSQ_ERR_SUCCESS)
+    {
+      printf ("Could not publish state msg, error %d (%s)\n", rc, mosquitto_strerror(rc));
     }
   }
 

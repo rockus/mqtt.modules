@@ -12,6 +12,7 @@ Makefile
 
 .deps/
 *.o
+*.swp
 
 raspi_pulsecount_mqtt
 bme280_mqtt
